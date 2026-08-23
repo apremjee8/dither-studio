@@ -128,26 +128,6 @@ export function buffersDiffer(a: PixelBuffer, b: PixelBuffer): boolean {
   return false;
 }
 
-export function hexRgb(hex: string): Rgb {
-  const body = hex.startsWith("#") ? hex.slice(1) : hex;
-  if (body.length !== 6) {
-    throw new Error(`expected #rrggbb, got ${hex}`);
-  }
-  return {
-    r: Number.parseInt(body.slice(0, 2), 16),
-    g: Number.parseInt(body.slice(2, 4), 16),
-    b: Number.parseInt(body.slice(4, 6), 16),
-  };
-}
-
-export function rgbEqual(a: Rgb, b: Rgb): boolean {
-  return a.r === b.r && a.g === b.g && a.b === b.b;
-}
-
 export function luminance(rgb: Rgb): number {
   return 0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b;
-}
-
-export function withBlend(recipe: PrintRecipe, blend: number): PrintRecipe {
-  return { ...recipe, blend };
 }

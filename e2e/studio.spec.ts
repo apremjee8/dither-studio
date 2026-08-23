@@ -118,21 +118,37 @@ async function darkestQuartileMean(page: Page): Promise<{ r: number; g: number; 
       throw new Error("2d context unavailable");
     }
     const image = ctx.getImageData(0, 0, node.width, node.height);
-    const pixels: { r: number; g: number; b: number; y: number }[] = [];
+    const bins = Array.from({ length: 256 }, () => ({ count: 0, r: 0, g: 0, b: 0 }));
     for (let i = 0; i < image.data.length; i += 4) {
       const r = image.data[i] ?? 0;
       const g = image.data[i + 1] ?? 0;
       const b = image.data[i + 2] ?? 0;
-      pixels.push({ r, g, b, y: 0.299 * r + 0.587 * g + 0.114 * b });
+      const luma = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+      const bin = bins[luma];
+      if (bin) {
+        bin.count += 1;
+        bin.r += r;
+        bin.g += g;
+        bin.b += b;
+      }
     }
-    pixels.sort((a, b) => a.y - b.y);
-    const slice = pixels.slice(0, Math.max(1, Math.floor(pixels.length / 4)));
-    const sum = slice.reduce(
-      (acc, pixel) => ({ r: acc.r + pixel.r, g: acc.g + pixel.g, b: acc.b + pixel.b }),
-      { r: 0, g: 0, b: 0 },
-    );
-    const n = slice.length;
-    return { r: sum.r / n, g: sum.g / n, b: sum.b / n };
+    const target = Math.max(1, Math.floor((image.data.length / 4) * 0.25));
+    let remaining = target;
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    for (const bin of bins) {
+      if (remaining === 0 || bin.count === 0) {
+        continue;
+      }
+      const count = Math.min(remaining, bin.count);
+      const fraction = count / bin.count;
+      r += bin.r * fraction;
+      g += bin.g * fraction;
+      b += bin.b * fraction;
+      remaining -= count;
+    }
+    return { r: r / target, g: g / target, b: b / target };
   });
 }
 
@@ -186,14 +202,21 @@ test("loads jpg, png, and webp into the preview", async ({ page }) => {
   }
 });
 
-test("four presets change preview pixels versus the source upload", async ({ page }) => {
+test("presets keep source dimensions and produce distinct previews", async ({ page }) => {
   await upload(page, "image/png", "source.png");
   const source = await sourcePixels(page);
   expect(source.width).toBe(SOURCE_WIDTH);
   expect(source.height).toBe(SOURCE_HEIGHT);
 
   const seen = new Set<string>([source.hash]);
-  for (const id of ["bitgrain", "cyanotype", "cobalt", "print-halftone"] as const) {
+  for (const id of [
+    "bitgrain",
+    "cyanotype",
+    "cobalt",
+    "print-halftone",
+    "denim",
+    "meadow",
+  ]) {
     await page.getByTestId(`preset-${id}`).click();
     const next = await previewPixels(page);
     expect(next.width).toBe(source.width);
@@ -213,13 +236,6 @@ test("four presets change preview pixels versus the source upload", async ({ pag
   expect(dist(cobaltDark, { r: 49, g: 61, b: 235 })).toBeLessThan(
     dist(cobaltDark, { r: 248, g: 248, b: 252 }),
   );
-
-  await page.getByTestId("preset-denim").click();
-  const denim = await previewPixels(page);
-  expect(seen.has(denim.hash)).toBe(false);
-  await page.getByTestId("preset-meadow").click();
-  const meadow = await previewPixels(page);
-  expect(meadow.hash).not.toBe(denim.hash);
 });
 
 test("download PNG matches the source width and height", async ({ page }) => {

@@ -1,8 +1,8 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PNG } from "pngjs";
-import { PRESETS, applyPreset } from "../src/presets.ts";
+import { PRESETS, applyPreset } from "../src/presets";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const sourcePath = join(root, "samples", "ridge-source.png");
@@ -12,8 +12,6 @@ const source = {
   height: sourcePng.height,
   data: new Uint8ClampedArray(sourcePng.data),
 };
-
-mkdirSync(join(root, "samples"), { recursive: true });
 
 for (const preset of PRESETS) {
   const out = applyPreset(source, preset.id);
