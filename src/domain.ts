@@ -12,14 +12,53 @@ export type PixelBuffer = {
   readonly data: Uint8ClampedArray;
 };
 
-export type DitherKind =
-  | { readonly kind: "floyd-steinberg" }
-  | { readonly kind: "bayer"; readonly size: 4 | 8 }
-  | { readonly kind: "halftone"; readonly cell: number };
+export type CellPx = number & { readonly __brand: "CellPx" };
 
-export type PaletteKind =
-  | { readonly kind: "quantize"; readonly bitsPerChannel: number }
-  | { readonly kind: "fixed"; readonly colors: NonEmptyRgb };
+export function cellPx(value: number): CellPx {
+  if (!(value > 1) || !Number.isFinite(value)) {
+    throw new Error(`cell size must be > 1, got ${value}`);
+  }
+  return value as CellPx;
+}
+
+export function downsampleSize(
+  width: number,
+  height: number,
+  cell: CellPx,
+): { cols: number; rows: number } {
+  return {
+    cols: Math.max(1, Math.ceil(width / cell)),
+    rows: Math.max(1, Math.ceil(height / cell)),
+  };
+}
+
+const CELL_REFERENCE_SHORT_SIDE = 480;
+
+export function effectiveCell(cell: CellPx, width: number, height: number): CellPx {
+  const short = Math.min(width, height);
+  const scale = Math.max(1, short / CELL_REFERENCE_SHORT_SIDE);
+  return cellPx(cell * scale);
+}
+
+export type KernelId = "floyd-steinberg" | "atkinson" | "sierra" | "simple";
+
+export type Look =
+  | { readonly kind: "duo"; readonly ink: Rgb; readonly paper: Rgb }
+  | { readonly kind: "bitgrain"; readonly levelsPerChannel: 3 | 4 | 5 }
+  | { readonly kind: "print"; readonly inks: NonEmptyRgb };
+
+export type PrintRecipe = {
+  readonly id: PresetId;
+  readonly name: string;
+  readonly blurb: string;
+  readonly contrast: number;
+  readonly cell: CellPx;
+  readonly kernel: KernelId;
+  readonly noise: number;
+  readonly bias: number;
+  readonly blend: number;
+  readonly look: Look;
+};
 
 export type PresetId =
   | "bitgrain"
@@ -27,17 +66,11 @@ export type PresetId =
   | "cobalt"
   | "print-halftone"
   | "risograph"
-  | "paper-grain";
+  | "paper-grain"
+  | "denim"
+  | "meadow";
 
-export type Preset = {
-  readonly id: PresetId;
-  readonly name: string;
-  readonly blurb: string;
-  readonly contrast: number;
-  readonly dither: DitherKind;
-  readonly palette: PaletteKind;
-  readonly grayscale: boolean;
-};
+export type Preset = PrintRecipe;
 
 export type StudioState =
   | { readonly status: "empty" }
@@ -95,21 +128,6 @@ export function buffersDiffer(a: PixelBuffer, b: PixelBuffer): boolean {
   return false;
 }
 
-export function uniqueRgbCount(buffer: PixelBuffer): number {
-  const seen = new Set<number>();
-  const data = buffer.data;
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    if (r === undefined || g === undefined || b === undefined) {
-      continue;
-    }
-    seen.add((r << 16) | (g << 8) | b);
-  }
-  return seen.size;
-}
-
 export function hexRgb(hex: string): Rgb {
   const body = hex.startsWith("#") ? hex.slice(1) : hex;
   if (body.length !== 6) {
@@ -128,4 +146,8 @@ export function rgbEqual(a: Rgb, b: Rgb): boolean {
 
 export function luminance(rgb: Rgb): number {
   return 0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b;
+}
+
+export function withBlend(recipe: PrintRecipe, blend: number): PrintRecipe {
+  return { ...recipe, blend };
 }

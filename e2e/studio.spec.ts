@@ -108,7 +108,7 @@ async function previewPixels(page: Page): Promise<{
   });
 }
 
-async function uniquePreviewColors(page: Page): Promise<string[]> {
+async function darkestQuartileMean(page: Page): Promise<{ r: number; g: number; b: number }> {
   return page.getByTestId("preview-canvas").evaluate((node) => {
     if (!(node instanceof HTMLCanvasElement)) {
       throw new Error("preview is not a canvas");
@@ -118,12 +118,32 @@ async function uniquePreviewColors(page: Page): Promise<string[]> {
       throw new Error("2d context unavailable");
     }
     const image = ctx.getImageData(0, 0, node.width, node.height);
-    const colors = new Set<string>();
+    const pixels: { r: number; g: number; b: number; y: number }[] = [];
     for (let i = 0; i < image.data.length; i += 4) {
-      colors.add(`${image.data[i]},${image.data[i + 1]},${image.data[i + 2]}`);
+      const r = image.data[i] ?? 0;
+      const g = image.data[i + 1] ?? 0;
+      const b = image.data[i + 2] ?? 0;
+      pixels.push({ r, g, b, y: 0.299 * r + 0.587 * g + 0.114 * b });
     }
-    return [...colors];
+    pixels.sort((a, b) => a.y - b.y);
+    const slice = pixels.slice(0, Math.max(1, Math.floor(pixels.length / 4)));
+    const sum = slice.reduce(
+      (acc, pixel) => ({ r: acc.r + pixel.r, g: acc.g + pixel.g, b: acc.b + pixel.b }),
+      { r: 0, g: 0, b: 0 },
+    );
+    const n = slice.length;
+    return { r: sum.r / n, g: sum.g / n, b: sum.b / n };
   });
+}
+
+function dist(
+  a: { r: number; g: number; b: number },
+  b: { r: number; g: number; b: number },
+): number {
+  const dr = a.r - b.r;
+  const dg = a.g - b.g;
+  const db = a.b - b.b;
+  return dr * dr + dg * dg + db * db;
 }
 
 function pngSize(buffer: Buffer): { width: number; height: number } {
@@ -183,14 +203,23 @@ test("four presets change preview pixels versus the source upload", async ({ pag
   }
 
   await page.getByRole("button", { name: /Cyanotype/ }).click();
-  const cyanColors = await uniquePreviewColors(page);
-  expect(cyanColors).toHaveLength(2);
-  expect(cyanColors).toEqual(expect.arrayContaining(["10,79,84", "244,241,232"]));
+  const cyanDark = await darkestQuartileMean(page);
+  expect(dist(cyanDark, { r: 2, g: 92, b: 116 })).toBeLessThan(
+    dist(cyanDark, { r: 243, g: 248, b: 244 }),
+  );
 
   await page.getByRole("button", { name: /Cobalt/ }).click();
-  const cobaltColors = await uniquePreviewColors(page);
-  expect(cobaltColors).toHaveLength(2);
-  expect(cobaltColors).toEqual(expect.arrayContaining(["0,61,255", "255,255,255"]));
+  const cobaltDark = await darkestQuartileMean(page);
+  expect(dist(cobaltDark, { r: 49, g: 61, b: 235 })).toBeLessThan(
+    dist(cobaltDark, { r: 248, g: 248, b: 252 }),
+  );
+
+  await page.getByTestId("preset-denim").click();
+  const denim = await previewPixels(page);
+  expect(seen.has(denim.hash)).toBe(false);
+  await page.getByTestId("preset-meadow").click();
+  const meadow = await previewPixels(page);
+  expect(meadow.hash).not.toBe(denim.hash);
 });
 
 test("download PNG matches the source width and height", async ({ page }) => {
