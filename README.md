@@ -39,13 +39,10 @@ Each look crushes the photo to cells larger than one pixel, error-diffuses or Ba
 
 Processing stays on the canvas. There is no model and no upload endpoint.
 
-## Attach the repo to Vercel later
+## Public studio
 
-Do not deploy from this README. When you want a host, attach the GitHub repo in the Vercel dashboard as a Vite project.
+https://apremjee8.github.io/dither-studio/
 
-1. Import `apremjee8/dither-studio`.
-2. Leave the framework on Vite.
-3. Use `npm run build` as the build command and `dist` as the output directory.
-4. Set the install command to `npm install`.
+Drop a JPG, PNG, or WebP in that tab. The photo stays in the browser. GitHub Actions builds `dist` from `main` and publishes it to GitHub Pages. There is no upload endpoint.
 
-Vite emits static files. No serverless function is required.
+`dither-studio.vercel.app` is a different product. This repo has no Vercel token in the agent environment, so Pages is the public host. To attach Vercel later, import `apremjee8/dither-studio` as a Vite app, build with `npm run build`, and publish `dist`. Turn Deployment Protection off if you want the same no-login link.
