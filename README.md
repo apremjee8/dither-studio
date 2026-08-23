@@ -44,5 +44,3 @@ Processing stays on the canvas. There is no model and no upload endpoint.
 https://apremjee8.github.io/dither-studio/
 
 Drop a JPG, PNG, or WebP in that tab. The photo stays in the browser. GitHub Actions builds `dist` from `main` and publishes it to GitHub Pages. There is no upload endpoint.
-
-`dither-studio.vercel.app` is a different product. This repo has no Vercel token in the agent environment, so Pages is the public host. To attach Vercel later, import `apremjee8/dither-studio` as a Vite app, build with `npm run build`, and publish `dist`. Turn Deployment Protection off if you want the same no-login link.
