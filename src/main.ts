@@ -52,6 +52,7 @@ function renderDock(): void {
     button.type = "button";
     button.className = "preset";
     button.dataset.testid = `preset-${preset.id}`;
+    button.setAttribute("aria-label", `${preset.name}. ${preset.blurb}`);
     button.setAttribute("aria-pressed", String(state.status === "ready" && state.presetId === preset.id));
     const thumb = document.createElement("canvas");
     thumb.width = 84;
