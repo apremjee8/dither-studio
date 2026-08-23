@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dither Studio</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="mast">
+        <p class="mark">Dither Studio</p>
+        <p class="aside">Local file. Canvas only. Nothing leaves the tab.</p>
+      </header>
+      <main class="stage">
+        <div class="sheet" data-testid="preview">
+          <canvas id="preview-canvas" data-testid="preview-canvas" width="1" height="1"></canvas>
+          <p id="empty-copy" class="empty" data-testid="empty">
+            Drop a JPG, PNG, or WebP, or use Upload.
+          </p>
+        </div>
+      </main>
+      <footer class="dock">
+        <label class="ticket" data-testid="upload">
+          <input id="file-input" data-testid="file-input" type="file" accept="image/jpeg,image/png,image/webp" />
+          Upload
+        </label>
+        <div id="preset-dock" class="strip" data-testid="presets"></div>
+        <button id="download-btn" class="ticket ticket-down" data-testid="download" type="button" disabled>
+          Download PNG
+        </button>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
