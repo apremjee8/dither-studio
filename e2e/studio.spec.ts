@@ -51,6 +51,35 @@ async function upload(
   await expect(page.getByTestId("preview")).toHaveClass(/has-image/);
 }
 
+async function sourcePixels(page: Page): Promise<{
+  width: number;
+  height: number;
+  hash: string;
+}> {
+  return page.evaluate(async () => {
+    const input = document.querySelector("[data-testid=file-input]");
+    if (!(input instanceof HTMLInputElement) || !input.files?.[0]) {
+      throw new Error("no uploaded file");
+    }
+    const bitmap = await createImageBitmap(input.files[0]);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("2d context unavailable");
+    }
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    let hash = 0;
+    for (let i = 0; i < image.data.length; i += 1) {
+      hash = (hash * 33 + (image.data[i] ?? 0)) >>> 0;
+    }
+    return { width: canvas.width, height: canvas.height, hash: String(hash) };
+  });
+}
+
 async function previewPixels(page: Page): Promise<{
   width: number;
   height: number;
@@ -76,6 +105,24 @@ async function previewPixels(page: Page): Promise<{
       hash: String(hash),
       sample: Array.from(image.data.slice(0, 48)),
     };
+  });
+}
+
+async function uniquePreviewColors(page: Page): Promise<string[]> {
+  return page.getByTestId("preview-canvas").evaluate((node) => {
+    if (!(node instanceof HTMLCanvasElement)) {
+      throw new Error("preview is not a canvas");
+    }
+    const ctx = node.getContext("2d");
+    if (!ctx) {
+      throw new Error("2d context unavailable");
+    }
+    const image = ctx.getImageData(0, 0, node.width, node.height);
+    const colors = new Set<string>();
+    for (let i = 0; i < image.data.length; i += 4) {
+      colors.add(`${image.data[i]},${image.data[i + 1]},${image.data[i + 2]}`);
+    }
+    return [...colors];
   });
 }
 
@@ -121,37 +168,29 @@ test("loads jpg, png, and webp into the preview", async ({ page }) => {
 
 test("four presets change preview pixels versus the source upload", async ({ page }) => {
   await upload(page, "image/png", "source.png");
-  await page.getByTestId("preset-bitgrain").click();
-  const bitgrain = await previewPixels(page);
-  const seen = new Set<string>([bitgrain.hash]);
+  const source = await sourcePixels(page);
+  expect(source.width).toBe(SOURCE_WIDTH);
+  expect(source.height).toBe(SOURCE_HEIGHT);
 
-  for (const id of ["cyanotype", "cobalt", "print-halftone"] as const) {
+  const seen = new Set<string>([source.hash]);
+  for (const id of ["bitgrain", "cyanotype", "cobalt", "print-halftone"] as const) {
     await page.getByTestId(`preset-${id}`).click();
     const next = await previewPixels(page);
-    expect(next.width).toBe(bitgrain.width);
-    expect(next.height).toBe(bitgrain.height);
+    expect(next.width).toBe(source.width);
+    expect(next.height).toBe(source.height);
     expect(seen.has(next.hash)).toBe(false);
     seen.add(next.hash);
   }
 
-  await page.getByTestId("preset-cyanotype").click();
-  const cyanColors = await page.getByTestId("preview-canvas").evaluate((node) => {
-    if (!(node instanceof HTMLCanvasElement)) {
-      throw new Error("preview is not a canvas");
-    }
-    const ctx = node.getContext("2d");
-    if (!ctx) {
-      throw new Error("2d context unavailable");
-    }
-    const image = ctx.getImageData(0, 0, node.width, node.height);
-    const colors = new Set<string>();
-    for (let i = 0; i < image.data.length; i += 4) {
-      colors.add(`${image.data[i]},${image.data[i + 1]},${image.data[i + 2]}`);
-    }
-    return [...colors];
-  });
+  await page.getByRole("button", { name: /Cyanotype/ }).click();
+  const cyanColors = await uniquePreviewColors(page);
   expect(cyanColors).toHaveLength(2);
   expect(cyanColors).toEqual(expect.arrayContaining(["10,79,84", "244,241,232"]));
+
+  await page.getByRole("button", { name: /Cobalt/ }).click();
+  const cobaltColors = await uniquePreviewColors(page);
+  expect(cobaltColors).toHaveLength(2);
+  expect(cobaltColors).toEqual(expect.arrayContaining(["0,61,255", "255,255,255"]));
 });
 
 test("download PNG matches the source width and height", async ({ page }) => {
