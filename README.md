@@ -35,7 +35,7 @@ That command runs the unit tests, then Playwright against the Vite dev server.
 
 Each look crushes the photo to cells larger than one pixel, error-diffuses or Bayer-quantizes that grid, stamps one color per cell, then pulls luminance back toward the source so the photo still reads. Image bytes stay in the tab.
 
-`npm run samples` writes `samples/ridge-<preset>.png` from `samples/ridge-source.png`.
+`npm run samples` reads `SAMPLE_JOBS` in `src/sample-jobs.ts` and writes `samples/<stem>-<preset>.png`. Ridge stays. Midtone town, grass, and sky use a subset of presets. If those still miss the look, next is slider defaults for detail, contrast, and blend. Do not start another engine.
 
 Processing stays on the canvas. There is no model and no upload endpoint.
 
