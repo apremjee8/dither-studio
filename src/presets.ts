@@ -1,104 +1,143 @@
-import { type PixelBuffer, type Preset, type PresetId, hexRgb } from "./domain";
-import { ditherBuffer } from "./dither";
+import {
+  type NonEmptyRgb,
+  type PixelBuffer,
+  type Preset,
+  type PresetId,
+  type Rgb,
+  cellPx,
+} from "./domain";
+import { applyPrintSim } from "./print-sim";
 
-const TEAL = hexRgb("#0A4F54");
-const CREAM = hexRgb("#F4F1E8");
-const COBALT = hexRgb("#003DFF");
-const WHITE = hexRgb("#FFFFFF");
-const PINK = hexRgb("#FF3D8A");
-const MINT = hexRgb("#2EE6A6");
+const CYANOTYPE_INK: Rgb = { r: 2, g: 92, b: 116 };
+const CYANOTYPE_PAPER: Rgb = { r: 243, g: 248, b: 244 };
+const COBALT_INK: Rgb = { r: 49, g: 61, b: 235 };
+const COBALT_PAPER: Rgb = { r: 248, g: 248, b: 252 };
+const DENIM_INK: Rgb = { r: 70, g: 121, b: 164 };
+const DENIM_PAPER: Rgb = { r: 248, g: 249, b: 247 };
+const MEADOW_INK: Rgb = { r: 25, g: 134, b: 32 };
+const MEADOW_PAPER: Rgb = { r: 248, g: 250, b: 242 };
 
-const PRINT_PALETTE = [
-  hexRgb("#F3EAD6"),
-  hexRgb("#9EC5E8"),
-  hexRgb("#4A7FB5"),
-  hexRgb("#1E3A5F"),
-  hexRgb("#B85C38"),
-  hexRgb("#2C3A22"),
-  hexRgb("#1A1A14"),
-] as const;
+const PRINT_INKS: NonEmptyRgb = [
+  { r: 243, g: 234, b: 214 },
+  { r: 74, g: 127, b: 181 },
+  { r: 30, g: 58, b: 95 },
+  { r: 196, g: 163, b: 106 },
+  { r: 59, g: 36, b: 22 },
+  { r: 44, g: 58, b: 34 },
+  { r: 26, g: 26, b: 20 },
+];
 
-export const PRESETS: readonly Preset[] = [
-  {
+const PRESET_TABLE = {
+  bitgrain: {
     id: "bitgrain",
     name: "Bitgrain",
-    blurb: "Fine error-diffusion that keeps the scene's color",
-    contrast: 1.05,
-    dither: { kind: "floyd-steinberg" },
-    palette: { kind: "quantize", bitsPerChannel: 5 },
-    grayscale: false,
+    blurb: "Block Bayer grain that keeps the scene",
+    contrast: 1.08,
+    cell: cellPx(1.8),
+    kernel: "floyd-steinberg",
+    noise: 4,
+    bias: 0,
+    blend: 0.55,
+    look: { kind: "bitgrain", levelsPerChannel: 4 },
   },
-  {
+  cyanotype: {
     id: "cyanotype",
     name: "Cyanotype",
-    blurb: "Teal and cream stipple",
-    contrast: 1.35,
-    dither: { kind: "floyd-steinberg" },
-    palette: { kind: "fixed", colors: [TEAL, CREAM] },
-    grayscale: true,
+    blurb: "Harbor ink on cool paper",
+    contrast: 1.32,
+    cell: cellPx(2.6),
+    kernel: "simple",
+    noise: 6,
+    bias: 2,
+    blend: 0.42,
+    look: { kind: "duo", ink: CYANOTYPE_INK, paper: CYANOTYPE_PAPER },
   },
-  {
+  cobalt: {
     id: "cobalt",
     name: "Cobalt",
-    blurb: "Electric blue and white duotone",
-    contrast: 1.3,
-    dither: { kind: "floyd-steinberg" },
-    palette: { kind: "fixed", colors: [COBALT, WHITE] },
-    grayscale: true,
+    blurb: "Cobalt ink on cool paper",
+    contrast: 1.28,
+    cell: cellPx(2.5),
+    kernel: "floyd-steinberg",
+    noise: 7,
+    bias: 4,
+    blend: 0.45,
+    look: { kind: "duo", ink: COBALT_INK, paper: COBALT_PAPER },
   },
-  {
+  "print-halftone": {
     id: "print-halftone",
     name: "Print",
-    blurb: "Coarse screen-print grain",
-    contrast: 1.15,
-    dither: { kind: "halftone", cell: 5 },
-    palette: { kind: "fixed", colors: PRINT_PALETTE },
-    grayscale: false,
+    blurb: "Chunky inks on cream paper",
+    contrast: 1.18,
+    cell: cellPx(3.5),
+    kernel: "sierra",
+    noise: 5,
+    bias: 2,
+    blend: 0.38,
+    look: { kind: "print", inks: PRINT_INKS },
   },
-  {
+  risograph: {
     id: "risograph",
     name: "Riso",
-    blurb: "Pink and mint risograph",
-    contrast: 1.25,
-    dither: { kind: "floyd-steinberg" },
-    palette: { kind: "fixed", colors: [PINK, MINT] },
-    grayscale: true,
+    blurb: "Pink and mint on coarse cells",
+    contrast: 1.22,
+    cell: cellPx(2.4),
+    kernel: "atkinson",
+    noise: 5,
+    bias: 2,
+    blend: 0.48,
+    look: {
+      kind: "duo",
+      ink: { r: 226, g: 59, b: 122 },
+      paper: { r: 126, g: 224, b: 176 },
+    },
   },
-  {
+  "paper-grain": {
     id: "paper-grain",
     name: "Paper",
-    blurb: "Ordered grain on the original color",
+    blurb: "Three-level Bayer on coarse cells",
     contrast: 1.08,
-    dither: { kind: "bayer", size: 8 },
-    palette: { kind: "quantize", bitsPerChannel: 4 },
-    grayscale: false,
+    cell: cellPx(2.1),
+    kernel: "floyd-steinberg",
+    noise: 3,
+    bias: 0,
+    blend: 0.6,
+    look: { kind: "bitgrain", levelsPerChannel: 3 },
   },
-];
+  denim: {
+    id: "denim",
+    name: "Denim",
+    blurb: "Steel blue on warm paper",
+    contrast: 1.22,
+    cell: cellPx(2.6),
+    kernel: "floyd-steinberg",
+    noise: 6,
+    bias: 3,
+    blend: 0.42,
+    look: { kind: "duo", ink: DENIM_INK, paper: DENIM_PAPER },
+  },
+  meadow: {
+    id: "meadow",
+    name: "Meadow",
+    blurb: "Leaf ink on warm paper",
+    contrast: 1.2,
+    cell: cellPx(2.5),
+    kernel: "sierra",
+    noise: 6,
+    bias: 2,
+    blend: 0.42,
+    look: { kind: "duo", ink: MEADOW_INK, paper: MEADOW_PAPER },
+  },
+} satisfies Readonly<Record<PresetId, Preset>>;
+
+export const PRESETS: readonly Preset[] = Object.values(PRESET_TABLE);
 
 export const DEFAULT_PRESET_ID: PresetId = "bitgrain";
 
 export function presetById(id: PresetId): Preset {
-  const found = PRESETS.find((preset) => preset.id === id);
-  if (!found) {
-    const fallback = PRESETS[0];
-    if (!fallback) {
-      throw new Error("PRESETS is empty");
-    }
-    return fallback;
-  }
-  return found;
+  return PRESET_TABLE[id];
 }
 
 export function applyPreset(buffer: PixelBuffer, id: PresetId): PixelBuffer {
-  const preset = presetById(id);
-  return ditherBuffer({
-    buffer,
-    contrast: preset.contrast,
-    grayscale: preset.grayscale,
-    dither: preset.dither,
-    palette: preset.palette,
-  });
+  return applyPrintSim(buffer, presetById(id));
 }
-
-export const CYANOTYPE_COLORS = [TEAL, CREAM] as const;
-export const COBALT_COLORS = [COBALT, WHITE] as const;

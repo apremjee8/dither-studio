@@ -24,12 +24,18 @@ That command runs the unit tests, then Playwright against the Vite dev server.
 
 | Preset | What it does |
 | --- | --- |
-| Bitgrain | Floyd–Steinberg error diffusion with 5-bit color. Keeps more of the original hue. |
-| Cyanotype | Teal and cream stipple. High-contrast two-color Floyd–Steinberg. |
-| Cobalt | Electric blue and white duotone. |
-| Print | Coarse ordered halftone on a small print palette. |
-| Riso | Pink and mint risograph. |
-| Paper | Ordered Bayer grain with 4-bit color. |
+| Bitgrain | Coarse Bayer cells, 4 levels per channel, then intensity blend. |
+| Cyanotype | Harbor ink `[2,92,116]` on cool paper. Simple kernel on a coarse grid. |
+| Cobalt | Cobalt ink `[49,61,235]` on cool paper. Floyd-Steinberg on the grid. |
+| Print | Chunkier cells and a small ink set, then intensity blend. |
+| Denim | Steel blue on warm paper. Midtones for rock and sky. |
+| Meadow | Leaf ink on warm paper. |
+| Riso | Pink and mint on the same coarse-cell path. |
+| Paper | Three-level Bayer on coarse cells. |
+
+Each look crushes the photo to cells larger than one pixel, error-diffuses or Bayer-quantizes that grid, stamps one color per cell, then pulls luminance back toward the source so the photo still reads. Image bytes stay in the tab.
+
+`npm run samples` reads `SAMPLE_JOBS` in `src/sample-jobs.ts` and writes `samples/<stem>-<preset>.png`. Ridge stays. Midtone town, grass, and sky use a subset of presets. If those still miss the look, next is slider defaults for detail, contrast, and blend. Do not start another engine.
 
 Processing stays on the canvas. There is no model and no upload endpoint.
 

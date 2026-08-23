@@ -1,70 +1,80 @@
 import { describe, expect, it } from "vitest";
-import { buffersDiffer, rgbEqual, uniqueRgbCount } from "./domain";
+import { type PresetId, buffersDiffer, cellPx, downsampleSize } from "./domain";
 import { gradientBuffer } from "./fixtures";
-import {
-  COBALT_COLORS,
-  CYANOTYPE_COLORS,
-  applyPreset,
-} from "./presets";
+import { PRESETS, applyPreset, presetById } from "./presets";
+import { applyPrintSim } from "./print-sim";
 
-function everyPixelMatches(
-  buffer: ReturnType<typeof applyPreset>,
-  colors: readonly { r: number; g: number; b: number }[],
-): boolean {
-  const { data } = buffer;
-  for (let i = 0; i < data.length; i += 4) {
-    const pixel = { r: data[i] ?? 0, g: data[i + 1] ?? 0, b: data[i + 2] ?? 0 };
-    if (!colors.some((color) => rgbEqual(color, pixel))) {
-      return false;
-    }
-  }
-  return true;
-}
+const SHIPPED_IDS: readonly PresetId[] = [
+  "bitgrain",
+  "cyanotype",
+  "cobalt",
+  "print-halftone",
+  "denim",
+  "meadow",
+  "risograph",
+  "paper-grain",
+];
 
-describe("applyPreset", () => {
+describe("print-sim recipes", () => {
   const source = gradientBuffer(48, 32);
 
-  it("keeps source dimensions", () => {
-    const out = applyPreset(source, "bitgrain");
-    expect(out.width).toBe(source.width);
-    expect(out.height).toBe(source.height);
+  it("rejects a one-pixel cell", () => {
+    expect(() => cellPx(1)).toThrow(/cell size must be > 1/);
   });
 
-  it("does not mutate the source buffer", () => {
+  it("downsamples every shipped preset to a coarse grid", () => {
+    expect(new Set(PRESETS.map((preset) => preset.id))).toEqual(new Set(SHIPPED_IDS));
+    expect(PRESETS).toHaveLength(SHIPPED_IDS.length);
+    for (const preset of PRESETS) {
+      expect(preset.cell).toBeGreaterThan(1);
+      const grid = downsampleSize(48, 32, preset.cell);
+      expect(grid.cols).toBeLessThan(48);
+      expect(grid.rows).toBeLessThan(32);
+    }
+  });
+
+  it("keeps source dimensions without mutating the source", () => {
     const before = new Uint8ClampedArray(source.data);
-    applyPreset(source, "print-halftone");
+    for (const preset of PRESETS) {
+      const out = applyPreset(source, preset.id);
+      expect(out.width).toBe(source.width);
+      expect(out.height).toBe(source.height);
+    }
     expect(source.data).toEqual(before);
   });
 
-  it.each(["bitgrain", "cyanotype", "cobalt", "print-halftone"] as const)(
-    "%s changes pixel data versus the source",
-    (id) => {
-      const out = applyPreset(source, id);
-      expect(buffersDiffer(source, out)).toBe(true);
-    },
-  );
-
-  it("maps cyanotype to teal and cream only", () => {
-    const out = applyPreset(source, "cyanotype");
-    expect(everyPixelMatches(out, CYANOTYPE_COLORS)).toBe(true);
-    expect(uniqueRgbCount(out)).toBe(2);
+  it.each(SHIPPED_IDS)("%s changes pixel data versus the source", (id) => {
+    expect(buffersDiffer(source, applyPreset(source, id))).toBe(true);
   });
 
-  it("maps cobalt to electric blue and white only", () => {
-    const out = applyPreset(source, "cobalt");
-    expect(everyPixelMatches(out, COBALT_COLORS)).toBe(true);
-    expect(uniqueRgbCount(out)).toBe(2);
+  it("uses the harbor ink and paper for cyanotype", () => {
+    expect(presetById("cyanotype").look).toEqual({
+      kind: "duo",
+      ink: { r: 2, g: 92, b: 116 },
+      paper: { r: 243, g: 248, b: 244 },
+    });
   });
 
-  it("keeps more unique colors in bitgrain than cyanotype", () => {
-    const bitgrain = applyPreset(source, "bitgrain");
-    const cyanotype = applyPreset(source, "cyanotype");
-    expect(uniqueRgbCount(bitgrain)).toBeGreaterThan(uniqueRgbCount(cyanotype));
+  it("uses the cobalt ink and paper for cobalt", () => {
+    expect(presetById("cobalt").look).toEqual({
+      kind: "duo",
+      ink: { r: 49, g: 61, b: 235 },
+      paper: { r: 248, g: 248, b: 252 },
+    });
   });
 
-  it("makes print/halftone blockier than bitgrain", () => {
-    const print = applyPreset(source, "print-halftone");
-    const grain = applyPreset(source, "bitgrain");
-    expect(uniqueRgbCount(print)).toBeLessThan(uniqueRgbCount(grain));
+  it("keeps Bitgrain and Print on the print-sim path", () => {
+    expect(presetById("bitgrain").look.kind).toBe("bitgrain");
+    expect(presetById("print-halftone").look.kind).toBe("print");
+  });
+
+  it.each(SHIPPED_IDS)("%s is deterministic", (id) => {
+    expect(applyPreset(source, id).data).toEqual(applyPreset(source, id).data);
+  });
+
+  it("stamps one color per cell before intensity blend", () => {
+    const recipe = { ...presetById("cyanotype"), blend: 0 };
+    const out = applyPrintSim(source, recipe);
+    expect(Array.from(out.data.slice(0, 3))).toEqual(Array.from(out.data.slice(4, 7)));
   });
 });
