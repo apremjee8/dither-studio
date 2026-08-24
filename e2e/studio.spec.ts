@@ -346,17 +346,27 @@ for (const viewport of PHONE_VIEWPORTS) {
       const presetCount = await presetButtons.count();
       expect(presetCount).toBeGreaterThan(0);
       for (let index = 0; index < presetCount; index += 1) {
-        const box = await presetButtons.nth(index).boundingBox();
+        const button = presetButtons.nth(index);
+        const box = await button.boundingBox();
         if (!box) {
           throw new Error("preset has no box");
         }
         expect(box.height).toBeGreaterThanOrEqual(44);
+        const name = button.locator(".name");
+        await expect(name).toHaveText(/\S/);
+        const nameClipped = await name.evaluate((node) => {
+          return node.scrollWidth > node.clientWidth + 1;
+        });
+        expect(nameClipped).toBe(false);
       }
 
       expect(await fullyInViewport(page, "empty")).toBe(true);
       expect(await fullyInViewport(page, "upload")).toBe(true);
       expect(await fullyInViewport(page, "download")).toBe(true);
       expect(await fullyInViewport(page, "presets")).toBe(true);
+      const lastPreset = presetButtons.last();
+      await lastPreset.scrollIntoViewIfNeeded();
+      await expect(lastPreset.locator(".name")).toBeVisible();
 
       const emptyOverflows = await page.getByTestId("empty").evaluate((node) => {
         return node.scrollWidth > node.clientWidth + 1;
@@ -383,6 +393,19 @@ for (const viewport of PHONE_VIEWPORTS) {
     });
   });
 }
+
+test.describe("tablet 768", () => {
+  test.use({ viewport: { width: 768, height: 1024 } });
+
+  test("uses the compact dock", async ({ page }) => {
+    const columns = await page.locator(".dock").evaluate((node) => {
+      return getComputedStyle(node).gridTemplateColumns.split(" ").length;
+    });
+    expect(columns).toBe(2);
+    expect(await overflowsX(page)).toBe(false);
+    await expect(page.locator("#preset-dock .preset .name").first()).toHaveText(/\S/);
+  });
+});
 
 test.describe("desktop 900", () => {
   test.use({ viewport: { width: 900, height: 800 } });

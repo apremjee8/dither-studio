@@ -179,11 +179,6 @@ body {
 }
 
 @media (max-width: 899px) {
-  html,
-  body {
-    overflow-x: hidden;
-  }
-
   .app {
     min-height: 100dvh;
     padding:
