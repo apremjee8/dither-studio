@@ -39,5 +39,11 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Enable Pages
+        if: ${{ secrets.PAGES_TOKEN != '' }}
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+          token: ${{ secrets.PAGES_TOKEN }}
       - id: deployment
         uses: actions/deploy-pages@v4
