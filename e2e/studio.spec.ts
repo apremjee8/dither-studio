@@ -369,6 +369,17 @@ for (const viewport of PHONE_VIEWPORTS) {
         throw new Error("preview has no box");
       }
       expect(sheet.height).toBeGreaterThan(viewport.height * 0.4);
+
+      await upload(page, "image/png", "phone.png");
+      await expect(page.getByTestId("preview-canvas")).toBeVisible();
+      const canvasBox = await page.getByTestId("preview-canvas").boundingBox();
+      if (!canvasBox) {
+        throw new Error("preview canvas has no box");
+      }
+      expect(canvasBox.width).toBeLessThanOrEqual(viewport.width);
+      expect(await overflowsX(page)).toBe(false);
+      expect(await fullyInViewport(page, "upload")).toBe(true);
+      expect(await fullyInViewport(page, "download")).toBe(true);
     });
   });
 }

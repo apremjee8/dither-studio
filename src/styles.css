@@ -194,14 +194,13 @@ body {
   }
 
   .mast {
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 0.35rem 0.8rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.3rem;
     padding: 0.7rem 0.9rem 0.45rem;
   }
 
   .aside {
-    flex: 1 1 12rem;
     white-space: normal;
     overflow-wrap: anywhere;
   }
@@ -228,13 +227,25 @@ body {
 
   .dock {
     display: grid;
-    grid-template-columns: minmax(44px, auto) minmax(0, 1fr) minmax(44px, auto);
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "upload download"
+      "presets presets";
     align-items: stretch;
     gap: 0.45rem;
     padding: 0.55rem 0.65rem;
   }
 
+  .dock > .ticket:not(.ticket-down) {
+    grid-area: upload;
+  }
+
+  .dock > .ticket-down {
+    grid-area: download;
+  }
+
   .strip {
+    grid-area: presets;
     min-width: 0;
   }
 
@@ -246,6 +257,7 @@ body {
 
   .preset {
     display: inline-flex;
+    flex: 0 0 auto;
     align-items: center;
     gap: 0.35rem;
     min-height: 44px;
