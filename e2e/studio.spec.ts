@@ -292,3 +292,95 @@ test("no request sends image bytes", async ({ page }) => {
   expect(bodies).toEqual([]);
   expect(leaked).toEqual([]);
 });
+
+async function overflowsX(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    return root.scrollWidth > root.clientWidth + 1 || body.scrollWidth > body.clientWidth + 1;
+  });
+}
+
+async function boxHeight(page: Page, testId: string): Promise<number> {
+  const box = await page.getByTestId(testId).boundingBox();
+  if (!box) {
+    throw new Error(`${testId} has no box`);
+  }
+  return box.height;
+}
+
+async function fullyInViewport(page: Page, testId: string): Promise<boolean> {
+  return page.getByTestId(testId).evaluate((node) => {
+    const rect = node.getBoundingClientRect();
+    return (
+      rect.width > 0 &&
+      rect.height > 0 &&
+      rect.top >= -1 &&
+      rect.left >= -1 &&
+      rect.bottom <= window.innerHeight + 1 &&
+      rect.right <= window.innerWidth + 1
+    );
+  });
+}
+
+const PHONE_VIEWPORTS = [
+  { width: 390, height: 844 },
+  { width: 430, height: 932 },
+] as const;
+
+for (const viewport of PHONE_VIEWPORTS) {
+  test.describe(`${viewport.width}x${viewport.height}`, () => {
+    test.use({ viewport });
+
+    test("phone chrome stays usable", async ({ page }) => {
+      await expect(page.getByTestId("empty")).toBeVisible();
+      await expect(page.locator(".mark")).toBeVisible();
+      await expect(page.getByTestId("upload")).toBeVisible();
+      await expect(page.getByTestId("download")).toBeVisible();
+
+      expect(await boxHeight(page, "upload")).toBeGreaterThanOrEqual(44);
+      expect(await boxHeight(page, "download")).toBeGreaterThanOrEqual(44);
+
+      const presetButtons = page.locator("#preset-dock .preset");
+      await expect(presetButtons.first()).toBeVisible();
+      const presetCount = await presetButtons.count();
+      expect(presetCount).toBeGreaterThan(0);
+      for (let index = 0; index < presetCount; index += 1) {
+        const box = await presetButtons.nth(index).boundingBox();
+        if (!box) {
+          throw new Error("preset has no box");
+        }
+        expect(box.height).toBeGreaterThanOrEqual(44);
+      }
+
+      expect(await fullyInViewport(page, "empty")).toBe(true);
+      expect(await fullyInViewport(page, "upload")).toBe(true);
+      expect(await fullyInViewport(page, "download")).toBe(true);
+      expect(await fullyInViewport(page, "presets")).toBe(true);
+
+      const emptyOverflows = await page.getByTestId("empty").evaluate((node) => {
+        return node.scrollWidth > node.clientWidth + 1;
+      });
+      expect(emptyOverflows).toBe(false);
+      expect(await overflowsX(page)).toBe(false);
+
+      const sheet = await page.getByTestId("preview").boundingBox();
+      if (!sheet) {
+        throw new Error("preview has no box");
+      }
+      expect(sheet.height).toBeGreaterThan(viewport.height * 0.4);
+    });
+  });
+}
+
+test.describe("desktop 900", () => {
+  test.use({ viewport: { width: 900, height: 800 } });
+
+  test("keeps the three-column dock", async ({ page }) => {
+    const columns = await page.locator(".dock").evaluate((node) => {
+      return getComputedStyle(node).gridTemplateColumns.split(" ").length;
+    });
+    expect(columns).toBe(3);
+    expect(await overflowsX(page)).toBe(false);
+  });
+});
